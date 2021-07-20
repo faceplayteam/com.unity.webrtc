@@ -158,6 +158,11 @@ namespace Unity.WebRTC
 
                 m_bufferPosition += dataLength;
             }
+
+            internal bool IsValid(int sampleRate, int channels)
+            {
+                return (m_sampleRate == sampleRate && m_channel == channels);
+            }
         }
 
         readonly AudioSourceRead _audioSourceRead;
@@ -264,6 +269,13 @@ namespace Unity.WebRTC
         {
             if (_streamRenderer == null)
             {
+                _streamRenderer = new AudioStreamRenderer(this.Id, sampleRate, channels);
+
+                OnAudioReceived?.Invoke(_streamRenderer.clip);
+            }
+            else if (!_streamRenderer.IsValid(sampleRate, channels))
+            {
+                _streamRenderer.Dispose();
                 _streamRenderer = new AudioStreamRenderer(this.Id, sampleRate, channels);
 
                 OnAudioReceived?.Invoke(_streamRenderer.clip);
