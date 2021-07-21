@@ -1,5 +1,7 @@
 @echo off
 
+cd..
+
 rmdir /s /q .\Deploy
 
 mkdir Deploy\package
