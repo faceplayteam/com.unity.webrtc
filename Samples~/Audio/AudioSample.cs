@@ -17,6 +17,7 @@ namespace Unity.WebRTC
         [SerializeField] private Dropdown dropdownMicrophoneDevices;
         [SerializeField] private Dropdown dropdownAudioCodecs;
         [SerializeField] private Dropdown dropdownSpeakerMode;
+        [SerializeField] private Dropdown dropdownDSPBufferSize;
         [SerializeField] private Dropdown dropdownBandwidth;
         [SerializeField] private Button buttonStart;
         [SerializeField] private Button buttonCall;
@@ -49,7 +50,14 @@ namespace Unity.WebRTC
             { "10",  10 },
         };
 
-        void Start()
+        private Dictionary<string, int> dspBufferSizeOptions = new Dictionary<string, int>()
+        {
+            { "Best Latency",  256 },
+            { "Good Latency", 512 },
+            { "Best Performance", 1024 },
+        };
+
+    void Start()
         {
             WebRTC.Initialize(WebRTCSettings.EncoderType, WebRTCSettings.LimitTextureSize);
             StartCoroutine(WebRTC.Update());
@@ -69,6 +77,13 @@ namespace Unity.WebRTC
                 Enum.GetNames(typeof(AudioSpeakerMode)).Select(mode => new Dropdown.OptionData(mode)).ToList();
             dropdownSpeakerMode.value = (int)audioConf.speakerMode;
             dropdownSpeakerMode.onValueChanged.AddListener(OnSpeakerModeChanged);
+
+            dropdownDSPBufferSize.options =
+                dspBufferSizeOptions.Select(clip => new Dropdown.OptionData(clip.Key)).ToList();
+            dropdownDSPBufferSize.onValueChanged.AddListener(OnDSPBufferSizeChanged);
+
+            // best latency is default
+            OnDSPBufferSizeChanged(dropdownDSPBufferSize.value);
 
             dropdownAudioCodecs.AddOptions(new List<string>{"Default"});
             var codecs = RTCRtpSender.GetCapabilities(TrackKind.Audio).codecs;
@@ -110,6 +125,8 @@ namespace Unity.WebRTC
             {
                 m_deviceName = dropdownMicrophoneDevices.captionText.text;
                 m_clipInput = Microphone.Start(m_deviceName, true, m_lengthSeconds, m_samplingFrequency);
+                // set the latency to “0” samples before the audio starts to play.
+                while (!(Microphone.GetPosition(m_deviceName) > 0)) {}
             }
             else
             {
@@ -124,6 +141,7 @@ namespace Unity.WebRTC
             buttonCall.interactable = true;
             buttonHangup.interactable = true;
             dropdownSpeakerMode.interactable = false;
+            dropdownDSPBufferSize.interactable = false;
         }
 
         void OnEnableMicrophone(bool enable)
@@ -159,7 +177,6 @@ namespace Unity.WebRTC
             transceiver2.Direction = RTCRtpTransceiverDirection.RecvOnly;
 
             m_audioTrack = new AudioStreamTrack(inputAudioSource);
-
             _pc1.AddTrack(m_audioTrack, _sendStream);
 
             var transceiver1 = _pc1.GetTransceivers().First();
@@ -222,7 +239,9 @@ namespace Unity.WebRTC
             _sendStream?.Dispose();
             _pc1?.Dispose();
             _pc2?.Dispose();
-                
+            _pc1 = null;
+            _pc2 = null;
+
             inputAudioSource.Stop();
             outputAudioSource.Stop();
 
@@ -235,6 +254,7 @@ namespace Unity.WebRTC
             buttonPause.gameObject.SetActive(true);
 
             dropdownSpeakerMode.interactable = true;
+            dropdownDSPBufferSize.interactable = true;
             dropdownBandwidth.interactable = false;
 
         }
@@ -277,6 +297,16 @@ namespace Unity.WebRTC
             var audioConf = AudioSettings.GetConfiguration();
             audioConf.speakerMode = (AudioSpeakerMode)value;
             Debug.Log(audioConf.speakerMode);
+            if (!AudioSettings.Reset(audioConf))
+            {
+                Debug.LogError("Failed changing Audio Settings");
+            }
+        }
+
+        void OnDSPBufferSizeChanged(int value)
+        {
+            var audioConf = AudioSettings.GetConfiguration();
+            audioConf.dspBufferSize = dspBufferSizeOptions.Values.ToArray()[value];
             if (!AudioSettings.Reset(audioConf))
             {
                 Debug.LogError("Failed changing Audio Settings");
