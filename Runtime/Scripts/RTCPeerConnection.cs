@@ -37,6 +37,11 @@ namespace Unity.WebRTC
     /// <summary>
     ///
     /// </summary>
+    /// <param name="track"></param>
+    public delegate void DelegateOnRemoteTrackRemoved(MediaStreamTrack track);
+    /// <summary>
+    ///
+    /// </summary>
     public delegate void DelegateSetSessionDescSuccess();
     /// <summary>
     ///
@@ -269,6 +274,12 @@ namespace Unity.WebRTC
         /// <seealso cref="RTCTrackEvent"/>
         public DelegateOnTrack OnTrack { get; set; }
 
+        /// <summary>
+        ///
+        /// </summary>
+        /// <seealso cref="RTCTrackEvent"/>
+        public DelegateOnRemoteTrackRemoved OnTrackRemoved { get; set; }
+
         internal IntPtr GetSelfOrThrow()
         {
             if (self == IntPtr.Zero)
@@ -385,7 +396,10 @@ namespace Unity.WebRTC
                     var receiver = WebRTC.FindOrCreate(
                         receiverPtr, _ptr => new RTCRtpReceiver(_ptr, connection));
                     if(receiver != null)
+                    {
+                        connection.OnTrackRemoved?.Invoke(receiver.Track);
                         connection.cacheTracks.Remove(receiver.Track);
+                    }
                 }
             });
         }
