@@ -190,9 +190,14 @@ namespace Unity.WebRTC.Samples
 
         private void RemoveTracks()
         {
-            foreach (var sender in pc1Senders)
+            var transceivers = _pc1.GetTransceivers();
+            foreach (var transceiver in transceivers)
             {
-                _pc1.RemoveTrack(sender);
+                if(transceiver.Sender != null)
+                {
+                    transceiver.Stop();
+                    _pc1.RemoveTrack(transceiver.Sender);
+                }
             }
 
             pc1Senders.Clear();
@@ -301,21 +306,19 @@ namespace Unity.WebRTC.Samples
                 webCamTexture = null;
             }
 
-            receiveAudioStream.Dispose();
+            receiveAudioStream?.Dispose();
             receiveAudioStream = null;
-            receiveVideoStream.Dispose();
+            receiveVideoStream?.Dispose();
             receiveVideoStream = null;
 
-            videoStreamTrack.Dispose();
+            videoStreamTrack?.Dispose();
             videoStreamTrack = null;
-            audioStreamTrack.Dispose();
+            audioStreamTrack?.Dispose();
             audioStreamTrack = null;
 
-            _pc1.Close();
-            _pc2.Close();
             Debug.Log("Close local/remote peer connection");
-            _pc1.Dispose();
-            _pc2.Dispose();
+            _pc1?.Dispose();
+            _pc2?.Dispose();
             _pc1 = null;
             _pc2 = null;
             sourceImage.texture = null;
