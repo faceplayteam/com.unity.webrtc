@@ -182,8 +182,8 @@ namespace Unity.WebRTC
         /// <summary>
         ///
         /// </summary>
-        public AudioStreamTrack()
-            : this(Guid.NewGuid().ToString(), new AudioTrackSource())
+        public AudioStreamTrack(bool noiseSuppress, bool autoGainCtrl, bool highPassFilter)
+            : this(Guid.NewGuid().ToString(), new AudioTrackSource(), noiseSuppress, autoGainCtrl, highPassFilter)
         {
         }
 
@@ -191,7 +191,8 @@ namespace Unity.WebRTC
         ///
         /// </summary>
         /// <param name="source"></param>
-        public AudioStreamTrack(AudioSource source) : this()
+        public AudioStreamTrack(AudioSource source, bool noiseSuppress = true, bool autoGainCtrl = true, bool highPassFilter = true)
+            : this(noiseSuppress, autoGainCtrl, highPassFilter)
         {
             if (source == null)
                 throw new ArgumentNullException("AudioSource argument is null");
@@ -204,8 +205,8 @@ namespace Unity.WebRTC
             _audioSourceRead.onAudioRead += SetData;
         }
 
-        internal AudioStreamTrack(string label, AudioTrackSource source)
-            : this(WebRTC.Context.CreateAudioTrack(label, source.self))
+        internal AudioStreamTrack(string label, AudioTrackSource source, bool noiseSuppress, bool autoGainCtrl, bool highPassFilter)
+            : this(WebRTC.Context.CreateAudioTrack(label, source.self, noiseSuppress, autoGainCtrl, highPassFilter))
         {
             _source = source;
         }

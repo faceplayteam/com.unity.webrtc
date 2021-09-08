@@ -815,7 +815,7 @@ namespace Unity.WebRTC
         [DllImport(WebRTC.Lib)]
         public static extern IntPtr ContextCreateVideoTrack(IntPtr ptr, [MarshalAs(UnmanagedType.LPStr, SizeConst = 256)] string label, IntPtr trackSource);
         [DllImport(WebRTC.Lib)]
-        public static extern IntPtr ContextCreateAudioTrack(IntPtr ptr, [MarshalAs(UnmanagedType.LPStr, SizeConst = 256)] string label, IntPtr trackSource);
+        public static extern IntPtr ContextCreateAudioTrack(IntPtr ptr, [MarshalAs(UnmanagedType.LPStr, SizeConst = 256)] string label, IntPtr trackSource, [MarshalAs(UnmanagedType.U1)] bool noiseSuppress, [MarshalAs(UnmanagedType.U1)] bool autoGainCtrl, [MarshalAs(UnmanagedType.U1)] bool highPassFilter);
         [DllImport(WebRTC.Lib)]
         public static extern void ContextStopMediaStreamTrack(IntPtr context, IntPtr track);
         [DllImport(WebRTC.Lib)]

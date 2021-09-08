@@ -91,7 +91,7 @@ namespace webrtc
         MediaStreamObserver* GetObserver(const webrtc::MediaStreamInterface* stream);
 
         // Audio Source
-        webrtc::AudioSourceInterface* CreateAudioSource();
+        webrtc::AudioSourceInterface* CreateAudioSource(bool auto_gain_ctrl = true, bool noise_suppress = true, bool high_pass_filter = true);
 
         // Video Source
         webrtc::VideoTrackSourceInterface* CreateVideoSource();
