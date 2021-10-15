@@ -288,9 +288,9 @@ extern "C"
         return context->CreateVideoSource();
     }
 
-    UNITY_INTERFACE_EXPORT webrtc::AudioSourceInterface* ContextCreateAudioTrackSource(Context* context)
+    UNITY_INTERFACE_EXPORT webrtc::AudioSourceInterface* ContextCreateAudioTrackSource(Context* context, bool auto_gain_ctrl, bool noise_suppress, bool high_pass_filter)
     {
-        return context->CreateAudioSource();
+        return context->CreateAudioSource(auto_gain_ctrl, noise_suppress, high_pass_filter);
     }
 
     UNITY_INTERFACE_EXPORT webrtc::MediaStreamTrackInterface* ContextCreateAudioTrack(

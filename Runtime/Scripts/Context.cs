@@ -228,9 +228,9 @@ namespace Unity.WebRTC
             return NativeMethods.ContextCreateAudioTrackSource(self);
         }
 
-        public IntPtr CreateAudioTrack(string label, IntPtr trackSource)
+        public IntPtr CreateAudioTrack(string label, IntPtr trackSource, bool noiseSuppress, bool autoGainCtrl, bool highPassFilter)
         {
-            return NativeMethods.ContextCreateAudioTrack(self, label, trackSource);
+            return NativeMethods.ContextCreateAudioTrack(self, label, trackSource, noiseSuppress, autoGainCtrl, highPassFilter);
         }
 
         public IntPtr CreateVideoTrack(string label, IntPtr source)

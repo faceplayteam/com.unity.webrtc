@@ -391,13 +391,12 @@ namespace webrtc
         // todo:(kazuki)
     }
 
-    webrtc::AudioSourceInterface* Context::CreateAudioSource()
+    webrtc::AudioSourceInterface* Context::CreateAudioSource(bool auto_gain_ctrl, bool noise_suppress, bool high_pass_filter)
     {
-        //avoid optimization specially for voice
         cricket::AudioOptions audioOptions;
-        audioOptions.auto_gain_control = false;
-        audioOptions.noise_suppression = false;
-        audioOptions.highpass_filter = false;
+        audioOptions.auto_gain_control = auto_gain_ctrl;
+        audioOptions.noise_suppression = noise_suppress;
+        audioOptions.highpass_filter = high_pass_filter;
 
         const rtc::scoped_refptr<UnityAudioTrackSource> source =
             UnityAudioTrackSource::Create(audioOptions);
