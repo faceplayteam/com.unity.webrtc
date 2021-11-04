@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
@@ -37,10 +38,10 @@ namespace Unity.WebRTC
 
         internal class AudioStreamRenderer : IDisposable
         {
+            private const int SamplesPerSec = 100;
+
             private AudioClip m_clip;
-            private int m_sampleRate;
-            private int m_position = 0;
-            private int m_channel = 0;
+            private readonly BlockingCollection<float[]> m_recvBufs = new BlockingCollection<float[]>(SamplesPerSec);
 
             public AudioClip clip
             {
@@ -50,81 +51,12 @@ namespace Unity.WebRTC
                 }
             }
 
-            private float[] m_buffer;
-            private int m_bufferLength;
-            private int m_bufferPosition;
-            private int m_bufferResetCycle;
-            private int m_bufferingFrame;
-
             public AudioStreamRenderer(string name, int sampleRate, int channels)
             {
-                m_sampleRate = sampleRate;
-                m_channel = channels;
-                int lengthSamples = m_sampleRate;  // sample length for a second
-
-                m_bufferLength = sampleRate * channels;
-                m_buffer = new float[m_bufferLength];
-                m_bufferResetCycle = m_bufferLength * 5;  // reset buffer every 5 seconds
-                m_bufferingFrame = m_sampleRate / 1000;  // set initial buffering frames
+                int lengthSamples = sampleRate / SamplesPerSec;  // sample length for 10 milliseconds
 
                 // note:: OnSendAudio and OnAudioSetPosition callback is called before complete the constructor.
-                m_clip = AudioClip.Create(name, lengthSamples, channels, m_sampleRate, true, OnReadBuffer);
-            }
-
-            internal void OnReadBuffer(float[] data)
-            {
-                int dataLength = data.Length;
-
-                if (m_bufferingFrame > 0)
-                {
-                    m_bufferingFrame -= 1;
-
-                    // Sounds silent while buffering
-                    Array.Clear(data, 0, data.Length);
-                }
-                else if (m_bufferPosition > m_position + dataLength)
-                {
-                    int srcOffset = m_position % m_bufferLength;
-                    int destOffset = 0;
-                    int count = data.Length;
-
-                    if (srcOffset + dataLength > m_bufferLength)
-                    {
-                        count = m_bufferLength - srcOffset;
-
-                        Array.Copy(m_buffer, srcOffset, data, destOffset, count);
-
-                        srcOffset = 0;
-                        destOffset += count;
-                        count = dataLength - count;
-                    }
-
-                    Array.Copy(m_buffer, srcOffset, data, destOffset, count);
-
-                    m_position += dataLength;
-
-                    if (m_position == m_bufferResetCycle)
-                    {
-                        int endPosition = m_bufferPosition;
-                        int startPosition = endPosition - m_position;
-                        int remainLength = endPosition - startPosition;
-
-                        float[] temp = new float[remainLength];
-                        Array.Copy(m_buffer, startPosition, temp, 0, remainLength);
-                        Array.Copy(temp, m_buffer, remainLength);
-
-                        m_position = 0;
-                        m_bufferPosition = remainLength;
-                    }
-                }
-                else
-                {
-                    // Set waiting frames for buffering
-                    m_bufferingFrame += m_sampleRate / 1000; // if 48Khz, then 48 frames
-
-                    // Sounds silent while buffering
-                    Array.Clear(data, 0, data.Length);
-                }
+                m_clip = AudioClip.Create(name, lengthSamples, channels, sampleRate, true, OnAudioRead);
             }
 
             public void Dispose()
@@ -134,35 +66,33 @@ namespace Unity.WebRTC
                     WebRTC.DestroyOnMainThread(m_clip);
                 }
                 m_clip = null;
+                m_recvBufs.Dispose();
             }
 
             internal void SetData(float[] data)
             {
-                int dataLength = data.Length;
-                int srcOffset = 0;
-                int destOffset = m_bufferPosition % m_bufferLength;
-                int count = data.Length;
-
-                if (destOffset + dataLength > m_bufferLength)
-                {
-                    count = m_bufferLength - destOffset;
-
-                    Array.Copy(data, srcOffset, m_buffer, destOffset, count);
-
-                    srcOffset += count;
-                    destOffset = 0;
-
-                    count = dataLength - count;
-                }
-
-                Array.Copy(data, srcOffset, m_buffer, destOffset, count);
-
-                m_bufferPosition += dataLength;
+                m_recvBufs.TryAdd(data);
             }
 
-            internal bool IsValid(int sampleRate, int channels)
+            internal void OnAudioRead(float[] data)
             {
-                return (m_sampleRate == sampleRate && m_channel == channels);
+                if (m_recvBufs == null || m_clip == null)
+                {
+                    return;
+                }
+
+                int remain = data.Length;
+                while (remain > 0)
+                {
+                    if (m_recvBufs.TryTake(out float[] src) == false)
+                    {
+                        return;
+                    }
+
+                    var copyLen = Math.Min(src.Length, remain);
+                    Buffer.BlockCopy(src, 0, data, (data.Length - remain) * sizeof(float), copyLen * sizeof(float));
+                    remain -= copyLen;
+                }
             }
         }
 
@@ -294,7 +224,7 @@ namespace Unity.WebRTC
                     $"sampleRate={sampleRate}, " +
                     $"channels={channels}, " +
                     $"frames={frames}");
-            NativeMethods.ProcessAudio(track, array, sampleRate, channels, frames);
+            WebRTC.Context.ProcessLocalAudio(track, array, sampleRate, channels, frames);
         }
 
         /// <summary>
@@ -320,13 +250,6 @@ namespace Unity.WebRTC
                     frameCountReceiveDataForIgnoring++;
                     return;
                 }
-                _streamRenderer = new AudioStreamRenderer(this.Id, sampleRate, channels);
-
-                OnAudioReceived?.Invoke(_streamRenderer.clip);
-            }
-            else if (!_streamRenderer.IsValid(sampleRate, channels))
-            {
-                _streamRenderer.Dispose();
                 _streamRenderer = new AudioStreamRenderer(this.Id, sampleRate, channels);
 
                 OnAudioReceived?.Invoke(_streamRenderer.clip);

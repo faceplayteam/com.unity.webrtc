@@ -1376,7 +1376,8 @@ extern "C"
         ContextManager::GetInstance()->curContext = context;
     }
 
-    UNITY_INTERFACE_EXPORT void ProcessAudio(
+    UNITY_INTERFACE_EXPORT void ContextProcessLocalAudio(
+        Context* context,
         AudioTrackInterface* track,
         float* audio_data,
         int32 sample_rate,
@@ -1386,12 +1387,17 @@ extern "C"
         UnityAudioTrackSource* source =
             static_cast<UnityAudioTrackSource*>(track->GetSource());
 
-        source->OnData(audio_data,
+        source->PushAudioData(
+            audio_data,
             sample_rate,
             number_of_channels,
             number_of_frames);
-    }
 
+        auto adm = context->GetAudioDevice();
+        if (adm != nullptr) {
+            adm->RegisterSendAudioCallback(source, sample_rate, number_of_channels);
+        }
+    }
 
     UNITY_INTERFACE_EXPORT void ContextRegisterAudioReceiveCallback(
         Context* context, AudioTrackInterface* track, DelegateAudioReceive callback)

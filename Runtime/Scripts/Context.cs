@@ -303,5 +303,10 @@ namespace Unity.WebRTC
             textureUpdateFunction = textureUpdateFunction == IntPtr.Zero ? GetUpdateTextureFunc() : textureUpdateFunction;
             VideoDecoderMethods.UpdateRendererTexture(textureUpdateFunction, texture, rendererId);
         }
+
+        internal void ProcessLocalAudio(IntPtr track, IntPtr array, int sampleRate, int channels, int frames)
+        {
+            NativeMethods.ContextProcessLocalAudio(self, track, array, sampleRate, channels, frames);
+        }
     }
 }
