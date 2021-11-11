@@ -211,7 +211,7 @@ namespace webrtc
         return ret;
     }
 
-    char* ConvertString(const std::string str)
+    char* ConvertString(const std::string& str)
     {
         const size_t size = str.size();
         char* ret = static_cast<char*>(CoTaskMemAlloc(size + sizeof(char)));
@@ -1376,29 +1376,6 @@ extern "C"
         ContextManager::GetInstance()->curContext = context;
     }
 
-    UNITY_INTERFACE_EXPORT void ContextProcessLocalAudio(
-        Context* context,
-        AudioTrackInterface* track,
-        float* audio_data,
-        int32 sample_rate,
-        int32 number_of_channels,
-        int32 number_of_frames)
-    {
-        UnityAudioTrackSource* source =
-            static_cast<UnityAudioTrackSource*>(track->GetSource());
-
-        source->PushAudioData(
-            audio_data,
-            sample_rate,
-            number_of_channels,
-            number_of_frames);
-
-        auto adm = context->GetAudioDevice();
-        if (adm != nullptr) {
-            adm->RegisterSendAudioCallback(source, sample_rate, number_of_channels);
-        }
-    }
-
     UNITY_INTERFACE_EXPORT void ContextRegisterAudioReceiveCallback(
         Context* context, AudioTrackInterface* track, DelegateAudioReceive callback)
     {
@@ -1409,6 +1386,27 @@ extern "C"
         Context* context, AudioTrackInterface* track)
     {
         context->UnregisterAudioReceiveCallback(track);
+    }
+
+    UNITY_INTERFACE_EXPORT const char** ContextGetMicrophoneDevices(Context* context, size_t* length)
+    {
+        auto devices = context->GetMicrophoneDevices();
+        std::vector<const char*> marshalArray;
+        marshalArray.reserve(devices.size());
+        std::transform(devices.begin(), devices.end(),
+            std::back_inserter(marshalArray), ConvertString);
+        return ConvertArray(marshalArray, length);
+    }
+
+    UNITY_INTERFACE_EXPORT bool ContextSetMicrophone(Context* context, const char* deviceName)
+    {
+        auto devices = context->GetMicrophoneDevices();
+        for (int i = 0; i < devices.size(); i++) {
+            if (devices[i].compare(deviceName) == 0) {
+                return context->SelectMicrophoneDevice(i);
+            }
+        }
+        return false;
     }
 }
 

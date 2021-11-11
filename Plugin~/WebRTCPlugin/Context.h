@@ -8,6 +8,7 @@
 #include "UnityVideoRenderer.h"
 #include "UnityVideoTrackSource.h"
 #include "Codec/IEncoder.h"
+#include "AudioDeviceWrapper.h"
 
 using namespace ::webrtc;
 
@@ -144,18 +145,20 @@ namespace webrtc
             UnityRenderingExtTextureFormat format, void* textureHandle);
 
         // AudioDevice
-        rtc::scoped_refptr<DummyAudioDevice> GetAudioDevice() const { return m_audioDevice; }
+        std::vector<std::string> GetMicrophoneDevices();
+        bool SelectMicrophoneDevice(int index);
 
         // mutex;
         std::mutex mutex;
 
     private:
         int m_uid;
+        int m_selectedMic = 0;
         UnityEncoderType m_encoderType;
         std::unique_ptr<rtc::Thread> m_workerThread;
         std::unique_ptr<rtc::Thread> m_signalingThread;
         rtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface> m_peerConnectionFactory;
-        rtc::scoped_refptr<DummyAudioDevice> m_audioDevice;
+        rtc::scoped_refptr<AudioDeviceWrapper> m_audioDevice;
         std::vector<rtc::scoped_refptr<const webrtc::RTCStatsReport>> m_listStatsReport;
         std::map<const PeerConnectionObject*, rtc::scoped_refptr<PeerConnectionObject>> m_mapClients;
         std::map<const webrtc::MediaStreamInterface*, std::unique_ptr<MediaStreamObserver>> m_mapMediaStreamObserver;

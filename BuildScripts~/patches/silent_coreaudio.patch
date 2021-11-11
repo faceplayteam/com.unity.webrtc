@@ -1,0 +1,13 @@
+diff --git a/modules/audio_device/win/audio_device_core_win.cc b/modules/audio_device/win/audio_device_core_win.cc
+index 776a16cda4..24edbebf6d 100644
+--- a/modules/audio_device/win/audio_device_core_win.cc
++++ b/modules/audio_device/win/audio_device_core_win.cc
+@@ -2847,7 +2847,7 @@ DWORD AudioDeviceWindowsCore::DoRenderThread() {
+           nSamples = _ptrAudioBuffer->GetPlayoutData((int8_t*)pData);
+         }
+ 
+-        DWORD dwFlags(0);
++        DWORD dwFlags(ZAAUDCLNT_BUFFERFLAGS_SILENT);
+         hr = _ptrRenderClient->ReleaseBuffer(_playBlockSize, dwFlags);
+         // See http://msdn.microsoft.com/en-us/library/dd316605(VS.85).aspx
+         // for more details regarding AUDCLNT_E_DEVICE_INVALIDATED.
