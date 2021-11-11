@@ -1085,8 +1085,6 @@ namespace Unity.WebRTC
         [DllImport(WebRTC.Lib)]
         public static extern IntPtr GetUpdateTextureFunc(IntPtr context);
         [DllImport(WebRTC.Lib)]
-        public static extern void ContextProcessLocalAudio(IntPtr context, IntPtr track, IntPtr array, int sampleRate, int channels, int frames);
-        [DllImport(WebRTC.Lib)]
         public static extern IntPtr StatsReportGetStatsList(IntPtr report, out ulong length, ref IntPtr types);
         [DllImport(WebRTC.Lib)]
         public static extern IntPtr StatsGetJson(IntPtr stats);
@@ -1134,6 +1132,11 @@ namespace Unity.WebRTC
         public static extern IntPtr StatsMemberGetDoubleArray(IntPtr member, out ulong length);
         [DllImport(WebRTC.Lib)]
         public static extern IntPtr StatsMemberGetStringArray(IntPtr member, out ulong length);
+        [DllImport(WebRTC.Lib)]
+        public static extern IntPtr ContextGetMicrophoneDevices(IntPtr context, out ulong length);
+        [DllImport(WebRTC.Lib)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        public static extern bool ContextSetMicrophone(IntPtr context, [MarshalAs(UnmanagedType.LPUTF8Str)] string deviceName);
     }
 
     internal static class VideoEncoderMethods

@@ -195,7 +195,7 @@ namespace webrtc
             RTC_FROM_HERE,
             [this]()
             {
-                m_audioDevice = new rtc::RefCountedObject<DummyAudioDevice>();
+                m_audioDevice = new rtc::RefCountedObject<AudioDeviceWrapper>();
             });
 
         std::unique_ptr<webrtc::VideoEncoderFactory> videoEncoderFactory =
@@ -545,6 +545,46 @@ namespace webrtc
         cricket::MediaType kind, RtpCapabilities* capabilities) const
     {
         *capabilities = m_peerConnectionFactory->GetRtpReceiverCapabilities(kind);
+    }
+
+    std::vector<std::string> Context::GetMicrophoneDevices() {
+        std::lock_guard<std::mutex> lock(mutex);
+
+        std::vector<std::string> devices;
+        if (m_audioDevice != nullptr) {
+            const int numDevices = m_audioDevice->RecordingDevices();
+            devices.reserve(numDevices);
+
+            char name[webrtc::kAdmMaxDeviceNameSize] = { 0 };
+            char guid[webrtc::kAdmMaxGuidSize] = { 0 };
+            for (int i = 0; i < numDevices; i++) {
+                int ret = m_audioDevice->RecordingDeviceName(i, name, guid);
+                if (ret != -1) {
+                    devices.emplace_back(name);
+                }
+            }
+
+        }
+        return devices;
+    }
+
+    bool Context::SelectMicrophoneDevice(int index) {
+        std::lock_guard<std::mutex> lock(mutex);
+
+        bool setDevice = false;
+        if (m_audioDevice != nullptr) {
+            m_audioDevice->SetSelectedMicIndex(index);
+            setDevice = true;
+            if (m_audioDevice->RecordingIsInitialized()) {
+                bool recording = m_audioDevice->Recording();
+                m_audioDevice->StopRecording();
+                m_audioDevice->InitRecording();
+                if (recording) {
+                    setDevice = m_audioDevice->StartRecording() == 0;
+                }
+            }
+        }
+        return setDevice;
     }
 
 } // end namespace webrtc

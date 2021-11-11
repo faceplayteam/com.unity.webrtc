@@ -23,8 +23,18 @@ namespace Unity.WebRTC
             }
             return Marshal.PtrToStringAnsi(ptr);
         }
+        public static string AsUtf8StringWithFreeMem(this IntPtr ptr)
+        {
+            if (ptr == IntPtr.Zero)
+            {
+                throw new ArgumentException("ptr is nullptr");
+            }
+            string str = Marshal.PtrToStringUTF8(ptr);
+            Marshal.FreeCoTaskMem(ptr);
+            return str;
+        }
 
-        public static T[] AsArray<T>(this IntPtr ptr, int length, bool freePtr = true)
+        public static T[] AsArray<T>(this IntPtr ptr, int length, bool freePtr = true, bool utf8 = false)
         {
             T[] ret = null;
 
@@ -86,6 +96,7 @@ namespace Unity.WebRTC
             {
                 IntPtr[] _array = ptr.AsArray<IntPtr>(length, false);
                 Converter<IntPtr, string> converter =
+                    utf8 ? new Converter<IntPtr, string>(AsUtf8StringWithFreeMem) :
                     freePtr ? new Converter<IntPtr, string>(AsAnsiStringWithFreeMem)
                         : new Converter<IntPtr, string>(AsAnsiStringWithoutFreeMem);
                 ret = Array.ConvertAll(_array, converter) as T[];

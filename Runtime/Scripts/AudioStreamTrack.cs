@@ -1,8 +1,6 @@
 using System;
 using System.IO;
 using System.Collections.Generic;
-using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using NAudio.Lame;
 
@@ -23,11 +21,6 @@ namespace Unity.WebRTC
         ///
         /// </summary>
         public event OnAudioReceived OnAudioReceived;
-
-        /// <summary>
-        ///
-        /// </summary>
-        public AudioSource Source { get; private set; }
 
         /// <summary>
         ///
@@ -218,7 +211,6 @@ namespace Unity.WebRTC
         /// </summary>
         const int MaxFrameCountReceiveDataForIgnoring = 5;
 
-        readonly AudioSourceRead _audioSourceRead;
         AudioStreamRenderer _streamRenderer;
         AudioTrackSource _source;
 
@@ -236,18 +228,11 @@ namespace Unity.WebRTC
         ///
         /// </summary>
         /// <param name="source"></param>
+        [Obsolete("Support for AudioSource is deprecated.")]
         public AudioStreamTrack(AudioSource source, bool noiseSuppress = true, bool autoGainCtrl = true, bool highPassFilter = true)
             : this(noiseSuppress, autoGainCtrl, highPassFilter)
         {
-            if (source == null)
-                throw new ArgumentNullException("AudioSource argument is null");
-            if (source.clip == null)
-                throw new ArgumentException("AudioClip must to be attached on AudioSource");
-            Source = source;
-
-            _audioSourceRead = source.gameObject.AddComponent<AudioSourceRead>();
-            _audioSourceRead.hideFlags = HideFlags.HideInHierarchy;
-            _audioSourceRead.onAudioRead += SetData;
+            throw new NotSupportedException();
         }
 
         internal AudioStreamTrack(string label, AudioTrackSource source, bool noiseSuppress, bool autoGainCtrl, bool highPassFilter)
@@ -273,87 +258,11 @@ namespace Unity.WebRTC
 
             if (self != IntPtr.Zero && !WebRTC.Context.IsNull)
             {
-                if (_audioSourceRead != null)
-                {
-                    // Unity API must be called from main thread.
-                    _audioSourceRead.onAudioRead -= SetData;
-                    WebRTC.DestroyOnMainThread(_audioSourceRead);
-                }
                 _streamRenderer?.Dispose();
                 _source?.Dispose();
                 WebRTC.Context.AudioTrackUnregisterAudioReceiveCallback(self);
             }
             base.Dispose();
-        }
-
-#if UNITY_2020_1_OR_NEWER
-        /// <summary>
-        ///
-        /// </summary>
-        /// <param name="nativeArray"></param>
-        /// <param name="channels"></param>
-        /// <param name="sampleRate"></param>
-        public void SetData(ref NativeArray<float>.ReadOnly nativeArray, int channels, int sampleRate)
-        {
-            unsafe
-            {
-                void* ptr = nativeArray.GetUnsafeReadOnlyPtr();
-                ProcessAudio(GetSelfOrThrow(), (IntPtr)ptr, sampleRate, channels, nativeArray.Length);
-            }
-        }
-#endif
-
-        /// <summary>
-        ///
-        /// </summary>
-        /// <param name="nativeArray"></param>
-        /// <param name="channels"></param>
-        /// <param name="sampleRate"></param>
-        public void SetData(ref NativeArray<float> nativeArray, int channels, int sampleRate)
-        {
-            unsafe
-            {
-                void* ptr = nativeArray.GetUnsafeReadOnlyPtr();
-                ProcessAudio(GetSelfOrThrow(), (IntPtr)ptr, sampleRate, channels, nativeArray.Length);
-            }
-        }
-
-        /// <summary>
-        ///
-        /// </summary>
-        /// <param name="nativeSlice"></param>
-        /// <param name="channels"></param>
-        public void SetData(ref NativeSlice<float> nativeSlice, int channels, int sampleRate)
-        {
-            unsafe
-            {
-                void* ptr = nativeSlice.GetUnsafeReadOnlyPtr();
-                ProcessAudio(GetSelfOrThrow(), (IntPtr)ptr, sampleRate, channels, nativeSlice.Length);
-            }
-        }
-
-        static void ProcessAudio(IntPtr track, IntPtr array, int sampleRate, int channels, int frames)
-        {
-            if (sampleRate == 0 || channels == 0 || frames == 0)
-                throw new ArgumentException($"arguments are invalid values " +
-                    $"sampleRate={sampleRate}, " +
-                    $"channels={channels}, " +
-                    $"frames={frames}");
-            WebRTC.Context.ProcessLocalAudio(track, array, sampleRate, channels, frames);
-        }
-
-        /// <summary>
-        ///
-        /// </summary>
-        /// <param name="array"></param>
-        /// <param name="channels"></param>
-        public void SetData(float[] array, int channels, int sampleRate)
-        {
-            if (array == null)
-                throw new ArgumentNullException("array is null");
-            NativeArray<float> nativeArray = new NativeArray<float>(array, Allocator.Temp);
-            SetData(ref nativeArray, channels, sampleRate);
-            nativeArray.Dispose();
         }
 
         private void OnAudioReceivedInternal(float[] audioData, int sampleRate, int channels, int numOfFrames)
@@ -365,7 +274,7 @@ namespace Unity.WebRTC
                     frameCountReceiveDataForIgnoring++;
                     return;
                 }
-                _streamRenderer = new AudioStreamRenderer((Source != null ? "in-" : "out-") + this.Id, sampleRate, channels);
+                _streamRenderer = new AudioStreamRenderer(this.Id, sampleRate, channels);
 
                 OnAudioReceived?.Invoke(_streamRenderer.clip);
             }

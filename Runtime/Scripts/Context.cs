@@ -304,9 +304,14 @@ namespace Unity.WebRTC
             VideoDecoderMethods.UpdateRendererTexture(textureUpdateFunction, texture, rendererId);
         }
 
-        internal void ProcessLocalAudio(IntPtr track, IntPtr array, int sampleRate, int channels, int frames)
+        internal string[] GetMicrophoneDevices()
         {
-            NativeMethods.ContextProcessLocalAudio(self, track, array, sampleRate, channels, frames);
+            return NativeMethods.ContextGetMicrophoneDevices(self, out var length).AsArray<string>((int)length, utf8: true);
+        }
+
+        internal bool SetMicrophone(string deviceName)
+        {
+            return NativeMethods.ContextSetMicrophone(self, deviceName);
         }
     }
 }
