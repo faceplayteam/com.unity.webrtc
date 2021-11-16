@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
@@ -38,10 +38,23 @@ namespace Unity.WebRTC
 
         internal class AudioStreamRenderer : IDisposable
         {
-            private const int SamplesPerSec = 100;
-
             private AudioClip m_clip;
-            private readonly BlockingCollection<float[]> m_recvBufs = new BlockingCollection<float[]>(SamplesPerSec);
+            private bool m_bufferReady = false;
+            private int m_offset = 0;
+            private readonly Queue<float[]> m_recvBufs = new Queue<float[]>();
+            private readonly int m_samplesPer10ms;
+            private AudioSource m_attachedSource;
+
+            private const int BufferingCount = 10;
+
+            internal enum BufferState
+            {
+                Unknown,
+                Inactive,
+                Normal,
+                WarningOverrun,
+                Overrun,
+            }
 
             public AudioClip clip
             {
@@ -53,10 +66,11 @@ namespace Unity.WebRTC
 
             public AudioStreamRenderer(string name, int sampleRate, int channels)
             {
-                int lengthSamples = sampleRate / SamplesPerSec;  // sample length for 10 milliseconds
+                int lengthSamples = sampleRate;  // sample length for 1 second
 
                 // note:: OnSendAudio and OnAudioSetPosition callback is called before complete the constructor.
-                m_clip = AudioClip.Create(name, lengthSamples, channels, sampleRate, true, OnAudioRead);
+                m_clip = AudioClip.Create(name + GetHashCode(), lengthSamples, channels, sampleRate, false);
+                m_samplesPer10ms = sampleRate / 100;
             }
 
             public void Dispose()
@@ -66,32 +80,113 @@ namespace Unity.WebRTC
                     WebRTC.DestroyOnMainThread(m_clip);
                 }
                 m_clip = null;
-                m_recvBufs.Dispose();
+                m_recvBufs.Clear();
+            }
+
+            internal AudioSource FindAttachedAudioSource()
+            {
+                foreach (var audioSource in GameObject.FindObjectsOfType<AudioSource>())
+                {
+                    if (audioSource.clip.name == m_clip.name)
+                    {
+                        return audioSource;
+                    }
+                }
+                return null;
+            }
+
+            internal void WriteToAudioClip(int cnt = 1, bool force = false)
+            {
+                while (cnt-- > 0 && m_recvBufs.Count > 0)
+                {
+                    WriteBuffer(m_recvBufs.Dequeue());
+                }
+                if (force)
+                {
+                    while (cnt-- > 0)
+                    {
+                        WriteBuffer(new float[m_samplesPer10ms * m_clip.channels]);
+                    }
+                }
+
+                void WriteBuffer(float[] data)
+                {
+                    m_clip.SetData(data, m_offset);
+                    m_offset = (m_offset + (data.Length / m_clip.channels)) % m_clip.samples;
+                }
+            }
+
+            internal BufferState CheckBufferState()
+            {
+                if (m_attachedSource != null)
+                {
+                    if (m_attachedSource.isPlaying == false)
+                    {
+                        return BufferState.Inactive;
+                    }
+
+                    if (m_attachedSource.timeSamples < m_offset)
+                    {
+                        if (m_offset - m_attachedSource.timeSamples <= m_samplesPer10ms)
+                        {
+                            return BufferState.WarningOverrun;
+                        }
+                    }
+                    else if (m_attachedSource.timeSamples >= m_offset)
+                    {
+                        bool checkBufferWrap = m_offset < m_clip.samples * 0.2 &&
+                            m_clip.samples * 0.8 < m_attachedSource.timeSamples;
+                        if (checkBufferWrap == false || m_attachedSource.timeSamples == m_offset)
+                        {
+                            return BufferState.Overrun;
+                        }
+                    }
+
+                    return BufferState.Normal;
+                }
+                return BufferState.Unknown;
             }
 
             internal void SetData(float[] data)
             {
-                m_recvBufs.TryAdd(data);
-            }
+                m_recvBufs.Enqueue(data);
 
-            internal void OnAudioRead(float[] data)
-            {
-                if (m_recvBufs == null || m_clip == null)
+                if (m_recvBufs.Count > BufferingCount && m_bufferReady == false)
                 {
-                    return;
-                }
-
-                int remain = data.Length;
-                while (remain > 0)
-                {
-                    if (m_recvBufs.TryTake(out float[] src) == false)
+                    var audioSource = FindAttachedAudioSource();
+                    if (audioSource)
                     {
-                        return;
+                        m_offset = audioSource.timeSamples;
+                        m_attachedSource = audioSource;
                     }
 
-                    var copyLen = Math.Min(src.Length, remain);
-                    Buffer.BlockCopy(src, 0, data, (data.Length - remain) * sizeof(float), copyLen * sizeof(float));
-                    remain -= copyLen;
+                    WriteToAudioClip(BufferingCount / 2);
+                    m_bufferReady = true;
+                }
+
+                if (m_bufferReady)
+                {
+                    switch (CheckBufferState())
+                    {
+                        case BufferState.Inactive:
+                            break;
+
+                        case BufferState.WarningOverrun:
+                            Debug.Log("BufferState.WarningOverrun");
+                            WriteToAudioClip(BufferingCount / 3, true);
+                            break;
+
+                        case BufferState.Overrun:
+                            Debug.Log("BufferState.Overrun");
+                            m_offset = m_attachedSource.timeSamples;
+                            WriteToAudioClip(BufferingCount / 2, true);
+                            break;
+
+                        case BufferState.Normal:
+                        case BufferState.Unknown:
+                            WriteToAudioClip(); ;
+                            break;
+                    }
                 }
             }
         }
