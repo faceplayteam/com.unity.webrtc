@@ -1,8 +1,10 @@
 using System;
+using System.IO;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
+using NAudio.Lame;
 
 namespace Unity.WebRTC
 {
@@ -45,6 +47,9 @@ namespace Unity.WebRTC
             private readonly int m_samplesPer10ms;
             private AudioSource m_attachedSource;
 
+            // TEST(jeonghun): For verifying receviced audio data
+            private readonly LameMP3FileWriter m_encoder;
+
             private const int BufferingCount = 10;
 
             internal enum BufferState
@@ -69,8 +74,18 @@ namespace Unity.WebRTC
                 int lengthSamples = sampleRate;  // sample length for 1 second
 
                 // note:: OnSendAudio and OnAudioSetPosition callback is called before complete the constructor.
-                m_clip = AudioClip.Create(name + GetHashCode(), lengthSamples, channels, sampleRate, false);
+                m_clip = AudioClip.Create($"{name}-{GetHashCode():x}", lengthSamples, channels, sampleRate, false);
                 m_samplesPer10ms = sampleRate / 100;
+
+                // TEST(jeonghun): For verifying receviced audio data
+                var waveFmt = NAudio.Wave.WZT.WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, channels);
+                var dstPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyMusic), "Faceplay");
+                if (File.Exists(dstPath) == false)
+                {
+                    Directory.CreateDirectory(dstPath);
+                } 
+
+                m_encoder = new LameMP3FileWriter(Path.Combine(dstPath, $"{m_clip.name}.mp3"), waveFmt, 128);
             }
 
             public void Dispose()
@@ -81,6 +96,9 @@ namespace Unity.WebRTC
                 }
                 m_clip = null;
                 m_recvBufs.Clear();
+
+                // TEST(jeonghun): For verifying receviced audio data
+                m_encoder?.Flush();
             }
 
             internal AudioSource FindAttachedAudioSource()
@@ -149,6 +167,11 @@ namespace Unity.WebRTC
 
             internal void SetData(float[] data)
             {
+                // TEST(jeonghun): For verifying receviced audio data
+                var byteArray = new byte[data.Length * sizeof(float)];
+                Buffer.BlockCopy(data, 0, byteArray, 0, byteArray.Length);
+                m_encoder?.WriteAsync(byteArray, 0, byteArray.Length);
+
                 m_recvBufs.Enqueue(data);
 
                 if (m_recvBufs.Count > BufferingCount && m_bufferReady == false)
@@ -345,7 +368,7 @@ namespace Unity.WebRTC
                     frameCountReceiveDataForIgnoring++;
                     return;
                 }
-                _streamRenderer = new AudioStreamRenderer(this.Id, sampleRate, channels);
+                _streamRenderer = new AudioStreamRenderer((Source != null ? "in-" : "out-") + this.Id, sampleRate, channels);
 
                 OnAudioReceived?.Invoke(_streamRenderer.clip);
             }
