@@ -37,29 +37,66 @@ namespace Unity.WebRTC
             get { return _streamRenderer?.clip; }
         }
 
+        internal class AudioBufferTracker
+        {
+            public const int NumOfFramesForBuffering = 5;
+            public long BufferPosition { get; set; }
+            public int SamplesPer10ms { get { return m_samplesPer10ms; } }
+
+            private readonly int m_sampleLength;
+            private readonly int m_samplesPer10ms;
+            private readonly int m_samplesForBuffering;
+            private long m_renderPos;
+            private int m_prevTimeSamples;
+
+            public AudioBufferTracker(int sampleLength)
+            {
+                m_sampleLength = sampleLength;
+                m_samplesPer10ms = m_sampleLength / 100;
+                m_samplesForBuffering = m_samplesPer10ms * NumOfFramesForBuffering;
+            }
+
+            public void Initialize(AudioSource source)
+            {
+                var timeSamples = source.timeSamples;
+                m_prevTimeSamples = timeSamples;
+                m_renderPos = timeSamples;
+                BufferPosition = timeSamples;
+            }
+
+            public int CheckNeedCorrection(AudioSource source)
+            {
+                if (source != null && m_prevTimeSamples != source.timeSamples)
+                {
+                    var timeSamples = source.timeSamples;
+                    m_renderPos += (timeSamples < m_prevTimeSamples ? m_sampleLength : 0) + timeSamples - m_prevTimeSamples;
+                    m_prevTimeSamples = timeSamples;
+
+                    if (m_renderPos >= BufferPosition)
+                    {
+                        return Math.Max((int)(m_renderPos - BufferPosition), m_samplesForBuffering);
+                    }
+                    else if (BufferPosition - m_renderPos <= m_samplesPer10ms)
+                    {
+                        return (int)(m_renderPos + m_samplesForBuffering - BufferPosition);
+                    }
+                }
+
+                return 0;
+            }
+        }
+
 
         internal class AudioStreamRenderer : IDisposable
         {
             private AudioClip m_clip;
             private bool m_bufferReady = false;
-            private int m_offset = 0;
             private readonly Queue<float[]> m_recvBufs = new Queue<float[]>();
-            private readonly int m_samplesPer10ms;
+            private readonly AudioBufferTracker m_bufInfo;
             private AudioSource m_attachedSource;
 
             // TEST(jeonghun): For verifying receviced audio data
             private readonly LameMP3FileWriter m_encoder;
-
-            private const int BufferingCount = 10;
-
-            internal enum BufferState
-            {
-                Unknown,
-                Inactive,
-                Normal,
-                WarningOverrun,
-                Overrun,
-            }
 
             public AudioClip clip
             {
@@ -75,7 +112,7 @@ namespace Unity.WebRTC
 
                 // note:: OnSendAudio and OnAudioSetPosition callback is called before complete the constructor.
                 m_clip = AudioClip.Create($"{name}-{GetHashCode():x}", lengthSamples, channels, sampleRate, false);
-                m_samplesPer10ms = sampleRate / 100;
+                m_bufInfo = new AudioBufferTracker(sampleRate);
 
                 // TEST(jeonghun): For verifying receviced audio data
                 var waveFmt = NAudio.Wave.WZT.WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, channels);
@@ -113,56 +150,26 @@ namespace Unity.WebRTC
                 return null;
             }
 
-            internal void WriteToAudioClip(int cnt = 1, bool force = false)
+            internal void WriteToAudioClip(int numOfFrames = 1)
             {
-                while (cnt-- > 0 && m_recvBufs.Count > 0)
+                int baseOffset = (int)(m_bufInfo.BufferPosition % m_clip.samples);
+                int writtenSamples = 0;
+
+                while (numOfFrames-- > 0)
                 {
-                    WriteBuffer(m_recvBufs.Dequeue());
-                }
-                if (force)
-                {
-                    while (cnt-- > 0)
-                    {
-                        WriteBuffer(new float[m_samplesPer10ms * m_clip.channels]);
-                    }
+                    writtenSamples += WriteBuffer(
+                        m_recvBufs.Count > 0 ? m_recvBufs.Dequeue() : null,
+                        baseOffset + writtenSamples);
                 }
 
-                void WriteBuffer(float[] data)
+                m_bufInfo.BufferPosition += writtenSamples;
+
+                int WriteBuffer(float[] data, int offset)
                 {
-                    m_clip.SetData(data, m_offset);
-                    m_offset = (m_offset + (data.Length / m_clip.channels)) % m_clip.samples;
+                    data ??= new float[m_bufInfo.SamplesPer10ms * m_clip.channels];
+                    m_clip.SetData(data, offset % m_clip.samples);
+                    return data.Length / m_clip.channels;
                 }
-            }
-
-            internal BufferState CheckBufferState()
-            {
-                if (m_attachedSource != null)
-                {
-                    if (m_attachedSource.isPlaying == false)
-                    {
-                        return BufferState.Inactive;
-                    }
-
-                    if (m_attachedSource.timeSamples < m_offset)
-                    {
-                        if (m_offset - m_attachedSource.timeSamples <= m_samplesPer10ms)
-                        {
-                            return BufferState.WarningOverrun;
-                        }
-                    }
-                    else if (m_attachedSource.timeSamples >= m_offset)
-                    {
-                        bool checkBufferWrap = m_offset < m_clip.samples * 0.2 &&
-                            m_clip.samples * 0.8 < m_attachedSource.timeSamples;
-                        if (checkBufferWrap == false || m_attachedSource.timeSamples == m_offset)
-                        {
-                            return BufferState.Overrun;
-                        }
-                    }
-
-                    return BufferState.Normal;
-                }
-                return BufferState.Unknown;
             }
 
             internal void SetData(float[] data)
@@ -174,41 +181,31 @@ namespace Unity.WebRTC
 
                 m_recvBufs.Enqueue(data);
 
-                if (m_recvBufs.Count > BufferingCount && m_bufferReady == false)
+                if (m_recvBufs.Count >= AudioBufferTracker.NumOfFramesForBuffering && m_bufferReady == false)
                 {
                     var audioSource = FindAttachedAudioSource();
                     if (audioSource)
                     {
-                        m_offset = audioSource.timeSamples;
                         m_attachedSource = audioSource;
+                        m_bufInfo.Initialize(m_attachedSource);
                     }
 
-                    WriteToAudioClip(BufferingCount / 2);
+                    WriteToAudioClip(AudioBufferTracker.NumOfFramesForBuffering - 1);
                     m_bufferReady = true;
                 }
 
                 if (m_bufferReady)
                 {
-                    switch (CheckBufferState())
+                    int correctSize = m_bufInfo.CheckNeedCorrection(m_attachedSource);
+                    if (correctSize > 0)
                     {
-                        case BufferState.Inactive:
-                            break;
-
-                        case BufferState.WarningOverrun:
-                            Debug.Log("BufferState.WarningOverrun");
-                            WriteToAudioClip(BufferingCount / 3, true);
-                            break;
-
-                        case BufferState.Overrun:
-                            Debug.Log("BufferState.Overrun");
-                            m_offset = m_attachedSource.timeSamples;
-                            WriteToAudioClip(BufferingCount / 2, true);
-                            break;
-
-                        case BufferState.Normal:
-                        case BufferState.Unknown:
-                            WriteToAudioClip(); ;
-                            break;
+                        Debug.Log($"Audio buffer correction : {correctSize}");
+                        WriteToAudioClip(correctSize / m_bufInfo.SamplesPer10ms +
+                            (correctSize % m_bufInfo.SamplesPer10ms) > 0 ? 1 : 0);
+                    }
+                    else
+                    {
+                        WriteToAudioClip();
                     }
                 }
             }
