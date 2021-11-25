@@ -142,7 +142,7 @@ namespace Unity.WebRTC
             {
                 foreach (var audioSource in GameObject.FindObjectsOfType<AudioSource>())
                 {
-                    if (audioSource.clip.name == m_clip.name)
+                    if (audioSource.clip != null && audioSource.clip.name == m_clip.name)
                     {
                         return audioSource;
                     }
