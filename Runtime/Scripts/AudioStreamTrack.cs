@@ -201,7 +201,7 @@ namespace Unity.WebRTC
                     {
                         Debug.Log($"Audio buffer correction : {correctSize}");
                         WriteToAudioClip(correctSize / m_bufInfo.SamplesPer10ms +
-                            (correctSize % m_bufInfo.SamplesPer10ms) > 0 ? 1 : 0);
+                            ((correctSize % m_bufInfo.SamplesPer10ms) > 0 ? 1 : 0));
                     }
                     else
                     {
