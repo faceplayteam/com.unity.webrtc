@@ -74,7 +74,7 @@ namespace Unity.WebRTC
 
                     if (m_renderPos >= BufferPosition)
                     {
-                        return Math.Max((int)(m_renderPos - BufferPosition), m_samplesForBuffering);
+                        return (int)(m_renderPos - BufferPosition) + m_samplesForBuffering;
                     }
                     else if (BufferPosition - m_renderPos <= m_samplesPer10ms)
                     {
