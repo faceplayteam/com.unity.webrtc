@@ -6,8 +6,6 @@ target_sources(WebRTCLib
     Context.h
     DataChannelObject.cpp
     DataChannelObject.h
-    DummyAudioDevice.cpp
-    DummyAudioDevice.h
     AudioDeviceWrapper.cpp
     AudioDeviceWrapper.h
     DummyVideoEncoder.cpp
