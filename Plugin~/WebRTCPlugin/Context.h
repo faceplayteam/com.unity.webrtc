@@ -2,7 +2,6 @@
 #include <mutex>
 
 #include "AudioTrackSinkAdapter.h"
-#include "DummyAudioDevice.h"
 #include "DummyVideoEncoder.h"
 #include "PeerConnectionObject.h"
 #include "UnityVideoRenderer.h"
