@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Collections.Generic;
 using UnityEngine;
-using NAudio.Lame;
 
 namespace Unity.WebRTC
 {
@@ -88,9 +87,6 @@ namespace Unity.WebRTC
             private readonly AudioBufferTracker m_bufInfo;
             private AudioSource m_attachedSource;
 
-            // TEST(jeonghun): For verifying receviced audio data
-            private readonly LameMP3FileWriter m_encoder;
-
             public AudioClip clip
             {
                 get
@@ -107,15 +103,8 @@ namespace Unity.WebRTC
                 m_clip = AudioClip.Create($"{name}-{GetHashCode():x}", lengthSamples, channels, sampleRate, false);
                 m_bufInfo = new AudioBufferTracker(sampleRate);
 
-                // TEST(jeonghun): For verifying receviced audio data
-                var waveFmt = NAudio.Wave.WZT.WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, channels);
-                var dstPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyMusic), "Faceplay");
-                if (File.Exists(dstPath) == false)
-                {
-                    Directory.CreateDirectory(dstPath);
-                } 
+                Debug.Log($"AudioClip is generated: {sampleRate}, {channels}");
 
-                m_encoder = new LameMP3FileWriter(Path.Combine(dstPath, $"{m_clip.name}.mp3"), waveFmt, 128);
             }
 
             public void Dispose()
@@ -126,9 +115,6 @@ namespace Unity.WebRTC
                 }
                 m_clip = null;
                 m_recvBufs.Clear();
-
-                // TEST(jeonghun): For verifying receviced audio data
-                m_encoder?.Flush();
             }
 
             internal AudioSource FindAttachedAudioSource()
@@ -167,12 +153,12 @@ namespace Unity.WebRTC
 
             internal void SetData(float[] data)
             {
-                // TEST(jeonghun): For verifying receviced audio data
-                var byteArray = new byte[data.Length * sizeof(float)];
-                Buffer.BlockCopy(data, 0, byteArray, 0, byteArray.Length);
-                m_encoder?.WriteAsync(byteArray, 0, byteArray.Length);
 
                 m_recvBufs.Enqueue(data);
+                if (m_clip == null)
+                {
+                    return;
+                }
 
                 if (m_recvBufs.Count >= AudioBufferTracker.NumOfFramesForBuffering && m_bufferReady == false)
                 {
@@ -273,6 +259,12 @@ namespace Unity.WebRTC
                 {
                     frameCountReceiveDataForIgnoring++;
                     return;
+                }
+                if (audioData.Length != channels * numOfFrames)
+                {
+                    Debug.Log($"Invalid channel count: {audioData.Length}, {sampleRate}, {channels}, {numOfFrames}");
+                    channels = audioData.Length / numOfFrames;
+                    Debug.Log($"Adjusted channel count: {channels}");
                 }
                 _streamRenderer = new AudioStreamRenderer(this.Id, sampleRate, channels);
 
