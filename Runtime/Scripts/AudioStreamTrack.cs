@@ -260,11 +260,15 @@ namespace Unity.WebRTC
                     frameCountReceiveDataForIgnoring++;
                     return;
                 }
-                if (audioData.Length != channels * numOfFrames)
+                // TODO(jeonghun): 싱글 채널로 오디오가 들어올 때의 workaround, 임시 대응
+                // 현재로선 원인은 알 수 없지만 스테레오 오디오가 싱글 채널인 것 처럼 들어올 때가 있음
+                // 오디오 데이터는 스테레오 오디오 그대로, 실제 호출 주기도 10ms 마다 2번 연속 호출되고 있음
+                // 그래서 해당 경우 강제로 stereo 오디오로 처리, 정확한 원인을 파악하여 수정이 필요
+                // 재현 방법: 아주 높은 확율로 3번째 멤버가 룸 입장 시 발생.
+                if (channels == 1)
                 {
-                    Debug.Log($"Invalid channel count: {audioData.Length}, {sampleRate}, {channels}, {numOfFrames}");
-                    channels = audioData.Length / numOfFrames;
-                    Debug.Log($"Adjusted channel count: {channels}");
+                    Debug.Log($"Force treat audio as stereo (original channel count:{channels})");
+                    channels = 2;
                 }
                 _streamRenderer = new AudioStreamRenderer(this.Id, sampleRate, channels);
 
