@@ -1037,6 +1037,9 @@ extern "C"
 
     UNITY_INTERFACE_EXPORT RTCErrorType TransceiverStop(RtpTransceiverInterface* transceiver)
     {
+        if (transceiver == nullptr) {
+            return RTCErrorType::INVALID_PARAMETER;
+        }
         auto error = transceiver->StopStandard();
         return error.type();
     }
