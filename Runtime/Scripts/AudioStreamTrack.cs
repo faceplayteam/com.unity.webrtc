@@ -105,6 +105,26 @@ namespace Unity.WebRTC
 
                 Debug.Log($"AudioClip is generated: {sampleRate}, {channels}");
 
+                AudioSettings.OnAudioConfigurationChanged += (bool deviceWasChanged) =>
+                {
+                    bool needToRecreate = m_clip != null && m_clip.channels == 0;
+                    if (needToRecreate)
+                    {
+                        var newClip = AudioClip.Create(m_clip.name, lengthSamples, channels, sampleRate, false);
+                        if (m_attachedSource != null && m_attachedSource.clip != null)
+                        {
+                            m_attachedSource.clip = newClip;
+                            m_bufInfo.Initialize(m_attachedSource);
+                            m_attachedSource.Play();
+                        }
+
+                        if (m_clip != null)
+                        {
+                            UnityEngine.Object.Destroy(m_clip);
+                            m_clip = newClip;
+                        }
+                    }
+                };
             }
 
             public void Dispose()
@@ -147,7 +167,7 @@ namespace Unity.WebRTC
                 {
                     data ??= new float[m_bufInfo.SamplesPer10ms * m_clip.channels];
                     m_clip.SetData(data, offset % m_clip.samples);
-                    return data.Length / m_clip.channels;
+                    return data.Length / Mathf.Max(m_clip.channels, 1);
                 }
             }
 
