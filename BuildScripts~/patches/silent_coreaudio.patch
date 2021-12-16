@@ -7,7 +7,7 @@ index 776a16cda4..24edbebf6d 100644
          }
  
 -        DWORD dwFlags(0);
-+        DWORD dwFlags(ZAAUDCLNT_BUFFERFLAGS_SILENT);
++        DWORD dwFlags(AUDCLNT_BUFFERFLAGS_SILENT);
          hr = _ptrRenderClient->ReleaseBuffer(_playBlockSize, dwFlags);
          // See http://msdn.microsoft.com/en-us/library/dd316605(VS.85).aspx
          // for more details regarding AUDCLNT_E_DEVICE_INVALIDATED.
