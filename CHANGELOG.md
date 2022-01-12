@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added the ability to execute pending native tasks manually from the main thread.
+- Added support for sending basic native collections (`NativeArray<T>`, `NativeSlice<T>` and `NativeArray<T>.ReadOnly`) to `RTCDataChannel`.
+- Added a property `RTCRtpTransceiver.Mid`.
+- Added enable native flag when Initializing WebRTC.
+
+### Changed
+
+- Upgraded libwebrtc [m92](https://groups.google.com/g/discuss-webrtc/c/hks5zneZJbo/m/Z-p4AfCrCQAJ).
+
+### Fixed
+
+- Fixed a crash bug where initializing video streaming on Unity Editor on Apple Silicon.
+- Fixed a crash bug where configuring OpenGL Core as a graphics API on Unity Editor on windows.
 
 ## [2.4.0-exp.4] - 2021-08-19
 
@@ -23,9 +35,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Add the audio waveform graph to `MultiplePeerConnections` scene in the sample
 
-### Fixed 
+### Fixed
 
-- Fix the crash on Windows with Vulkan API on `VideoReceieSample` 
+- Fix the crash on Windows with Vulkan API on `VideoReceieSample`
 - Fix the crash when calling `WebRTC.Initialize` twice
 - Fix the error in the build process on `Unity2021.2`
 
@@ -51,7 +63,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Add the validation of the streaming texture size on Android
-- Add the validation of the  streaming when using NvCodec 
+- Add the validation of the  streaming when using NvCodec
 - Use the software video decoder when disabling hardware acceleration
 
 ## [2.4.0-exp.1] - 2021-04-23
@@ -61,7 +73,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Android ARM64 platform support
 - Added a sample scene "Menu" which developers can go back and forth between sample scenes
 - Added a sample scene "PerfectNegotiation"
-- Added the software encoder on Linux support when using OpenGL Core graphics API 
+- Added the software encoder on Linux support when using OpenGL Core graphics API
 - Added the `RestartIce` method to the `RTCPeerConnection` class
 - Added the `Streams` property to the `RTCRtpReceiver` class
 
@@ -107,7 +119,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [2.3.0-preview] - 2020-12-28
 
-### Added 
+### Added
 
 - Supported iOS platform
 - Supported H.264 HW decoder (VideoToolbox) on macOS
@@ -166,7 +178,7 @@ public RTCDataChannel CreateDataChannel(string label RTCDataChannelInit options 
 
 - Upgrade libwebrtc m85
 - Upgrade NVIDIA Codec SDK 9.1
-- Changed `RTCPeerConnection` behaviour to throw exceptions when pass invalid arguments to `SetLocalDescription`, `SetRemoteDescription` 
+- Changed `RTCPeerConnection` behaviour to throw exceptions when pass invalid arguments to `SetLocalDescription`, `SetRemoteDescription`
 
 ## [2.1.3-preview] - 2020-09-28
 

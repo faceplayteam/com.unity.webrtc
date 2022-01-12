@@ -329,17 +329,9 @@ namespace Unity.WebRTC
     /// </summary>
     public static class WebRTC
     {
-#if UNITY_EDITOR_OSX
-        internal const string Lib = "Packages/com.faceplay.webrtc/Runtime/Plugins/macOS/webrtc.bundle/Contents/MacOS/webrtc";
-#elif UNITY_EDITOR_LINUX
-        internal const string Lib = "Packages/com.faceplay.webrtc/Runtime/Plugins/x86_64/libwebrtc.so";
-#elif UNITY_EDITOR_WIN
-        internal const string Lib = "Packages/com.faceplay.webrtc/Runtime/Plugins/x86_64/webrtc.dll";
-#elif UNITY_STANDALONE
-        internal const string Lib = "webrtc";
-#elif UNITY_IOS
+#if UNITY_IOS
         internal const string Lib = "__Internal";
-#elif UNITY_ANDROID
+#else
         internal const string Lib = "webrtc";
 #endif
         private static Context s_context = null;
@@ -405,7 +397,7 @@ namespace Unity.WebRTC
 
             // Initialize a custom invokable synchronization context to wrap the main thread UnitySynchronizationContext
             s_syncContext = new ExecutableUnitySynchronizationContext(SynchronizationContext.Current);
-            
+
             var flipShader = Resources.Load<Shader>("Flip");
             if (flipShader != null)
             {
@@ -434,7 +426,7 @@ namespace Unity.WebRTC
                         {
                             track.Update();
                         }
-                        else if (track.IsDecoderInitialized)
+                        else
                         {
                             track.UpdateReceiveTexture();
                         }
@@ -720,12 +712,24 @@ namespace Unity.WebRTC
         internal static Context Context { get { return s_context; } }
         internal static WeakReferenceTable Table { get { return s_context?.table; } }
 
-        public static bool SupportHardwareEncoder
+        // avoid crash when call GetHardwareEncoderSupport using OpenGL graphics on Win/Mac
+        public static bool HardwareEncoderSupport()
         {
-            get
+            // OpenGL APIs on windows/osx are not supported
+            if (Application.platform == RuntimePlatform.WindowsEditor ||
+                Application.platform == RuntimePlatform.WindowsPlayer ||
+                Application.platform == RuntimePlatform.OSXEditor ||
+                Application.platform == RuntimePlatform.OSXPlayer)
             {
-                return NativeMethods.GetHardwareEncoderSupport();
+                if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLCore ||
+                    SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES2 ||
+                    SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES3)
+                {
+                    return false;
+                }
             }
+
+            return NativeMethods.GetHardwareEncoderSupport();
         }
 
         /// <summary>
@@ -812,6 +816,8 @@ namespace Unity.WebRTC
     internal delegate void DelegateAudioReceive(
         IntPtr track, [MarshalAs(UnmanagedType.LPArray, SizeParamIndex = 2)] float[] audioData, int size,
         int sampleRate, int numOfChannels, int numOfFrames);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate void DelegateVideoFrameResize(IntPtr renderer, int width, int height);
 
     internal static class NativeMethods
     {
@@ -975,6 +981,8 @@ namespace Unity.WebRTC
         [return: MarshalAs(UnmanagedType.U1)]
         public static extern RTCErrorType TransceiverStop(IntPtr transceiver);
         [DllImport(WebRTC.Lib)]
+        public static extern IntPtr TransceiverGetMid(IntPtr transceiver);
+        [DllImport(WebRTC.Lib)]
         public static extern RTCRtpTransceiverDirection TransceiverGetDirection(IntPtr transceiver);
         [DllImport(WebRTC.Lib)]
         public static extern void TransceiverSetDirection(IntPtr transceiver, RTCRtpTransceiverDirection direction);
@@ -1019,16 +1027,18 @@ namespace Unity.WebRTC
         public static extern RTCDataChannelState DataChannelGetReadyState(IntPtr ptr);
         [DllImport(WebRTC.Lib)]
         public static extern void DataChannelSend(IntPtr ptr, [MarshalAs(UnmanagedType.LPStr)]string msg);
+        [DllImport(WebRTC.Lib, EntryPoint = "DataChannelSendBinary")]
+        public static extern void DataChannelSendPtr(IntPtr ptr, IntPtr dataPtr, int size);
         [DllImport(WebRTC.Lib)]
         public static extern void DataChannelSendBinary(IntPtr ptr, [MarshalAs(UnmanagedType.LPArray, SizeParamIndex = 2)] byte[] bytes, int size);
         [DllImport(WebRTC.Lib)]
         public static extern void DataChannelClose(IntPtr ptr);
         [DllImport(WebRTC.Lib)]
-        public static extern void DataChannelRegisterOnMessage(IntPtr ptr, DelegateNativeOnMessage callback);
+        public static extern void DataChannelRegisterOnMessage(IntPtr ctx, IntPtr ptr, DelegateNativeOnMessage callback);
         [DllImport(WebRTC.Lib)]
-        public static extern void DataChannelRegisterOnOpen(IntPtr ptr, DelegateNativeOnOpen callback);
+        public static extern void DataChannelRegisterOnOpen(IntPtr ctx, IntPtr ptr, DelegateNativeOnOpen callback);
         [DllImport(WebRTC.Lib)]
-        public static extern void DataChannelRegisterOnClose(IntPtr ptr, DelegateNativeOnClose callback);
+        public static extern void DataChannelRegisterOnClose(IntPtr ctx, IntPtr ptr, DelegateNativeOnClose callback);
         [DllImport(WebRTC.Lib)]
         public static extern IntPtr ContextCreateMediaStream(IntPtr ctx, [MarshalAs(UnmanagedType.LPStr, SizeConst = 256)] string label);
         [DllImport(WebRTC.Lib)]
@@ -1069,7 +1079,7 @@ namespace Unity.WebRTC
         [DllImport(WebRTC.Lib)]
         public static extern void MediaStreamTrackSetEnabled(IntPtr track, [MarshalAs(UnmanagedType.U1)] bool enabled);
         [DllImport(WebRTC.Lib)]
-        public static extern IntPtr CreateVideoRenderer(IntPtr context);
+        public static extern IntPtr CreateVideoRenderer(IntPtr context, DelegateVideoFrameResize callback);
         [DllImport(WebRTC.Lib)]
         public static extern uint GetVideoRendererId(IntPtr sink);
         [DllImport(WebRTC.Lib)]

@@ -182,11 +182,11 @@ namespace webrtc
 
     Context::Context(int uid, UnityEncoderType encoderType, bool forTest)
         : m_uid(uid)
+        , m_workerThread(rtc::Thread::CreateWithSocketServer())
+        , m_signalingThread(rtc::Thread::CreateWithSocketServer())
         , m_encoderType(encoderType)
     {
-        m_workerThread.reset(new rtc::Thread(rtc::SocketServer::CreateDefault()));
         m_workerThread->Start();
-        m_signalingThread.reset(new rtc::Thread(rtc::SocketServer::CreateDefault()));
         m_signalingThread->Start();
 
         rtc::InitializeSSL();
@@ -370,7 +370,8 @@ namespace webrtc
     VideoTrackSourceInterface* Context::CreateVideoSource()
     {
         rtc::scoped_refptr<UnityVideoTrackSource> source =
-            new rtc::RefCountedObject<UnityVideoTrackSource>(false, nullptr);
+            new rtc::RefCountedObject<UnityVideoTrackSource>(
+                false, absl::nullopt);
 
         AddRefPtr(source);
         return source;
@@ -454,27 +455,37 @@ namespace webrtc
         m_listStatsReport.erase(found);
 	}
 
-    DataChannelObject* Context::CreateDataChannel(PeerConnectionObject* obj, const char* label, const DataChannelInit& options)
+    DataChannelInterface* Context::CreateDataChannel(
+        PeerConnectionObject* obj, const char* label, const DataChannelInit& options)
     {
-        auto channel = obj->connection->CreateDataChannel(label, &options);
+        const rtc::scoped_refptr<DataChannelInterface> channel =
+            obj->connection->CreateDataChannel(label, &options);
+
         if (channel == nullptr)
             return nullptr;
-        auto dataChannelObj = std::make_unique<DataChannelObject>(channel, *obj);
-        DataChannelObject* ptr = dataChannelObj.get();
-        m_mapDataChannels[ptr] = std::move(dataChannelObj);
-        return ptr;
+
+        AddDataChannel(channel, *obj);
+        return channel;
     }
 
-    void Context::AddDataChannel(std::unique_ptr<DataChannelObject> channel) {
-        const auto ptr = channel.get();
-        m_mapDataChannels[ptr] = std::move(channel);
-    }
-
-    void Context::DeleteDataChannel(DataChannelObject* obj)
+    void Context::AddDataChannel(
+        DataChannelInterface* channel, PeerConnectionObject& pc)
     {
-        if (m_mapDataChannels.count(obj) > 0)
+        auto dataChannelObj = std::make_unique<DataChannelObject>(channel, pc);
+        m_mapDataChannels[channel] = std::move(dataChannelObj);
+    }
+
+    DataChannelObject* Context::GetDataChannelObject(
+        const DataChannelInterface* channel)
+    {
+        return m_mapDataChannels[channel].get();
+    }
+
+    void Context::DeleteDataChannel(DataChannelInterface* channel)
+    {
+        if (m_mapDataChannels.count(channel) > 0)
         {
-            m_mapDataChannels.erase(obj);
+            m_mapDataChannels.erase(channel);
         }
     }
 
@@ -516,10 +527,10 @@ namespace webrtc
     uint32_t Context::s_rendererId = 0;
     uint32_t Context::GenerateRendererId() { return s_rendererId++; }
 
-    UnityVideoRenderer* Context::CreateVideoRenderer()
+    UnityVideoRenderer* Context::CreateVideoRenderer(DelegateVideoFrameResize callback)
     {
         auto rendererId = GenerateRendererId();
-        auto renderer = std::make_shared<UnityVideoRenderer>(rendererId);
+        auto renderer = std::make_shared<UnityVideoRenderer>(rendererId, callback);
         m_mapVideoRenderer[rendererId] = renderer;
         return m_mapVideoRenderer[rendererId].get();
     }

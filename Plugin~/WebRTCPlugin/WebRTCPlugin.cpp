@@ -105,6 +105,7 @@ namespace webrtc
             return *this;
         }
 
+        __attribute__((optnone))
         explicit operator const absl::optional<T>&() const
         {
             absl::optional<T> dst = absl::nullopt;
@@ -390,9 +391,9 @@ extern "C"
         track->set_enabled(enabled);
     }
 
-    UNITY_INTERFACE_EXPORT UnityVideoRenderer* CreateVideoRenderer(Context* context)
+    UNITY_INTERFACE_EXPORT UnityVideoRenderer* CreateVideoRenderer(Context* context, DelegateVideoFrameResize callback)
     {
-        return context->CreateVideoRenderer();
+        return context->CreateVideoRenderer(callback);
     }
 
     UNITY_INTERFACE_EXPORT uint32_t GetVideoRendererId(UnityVideoRenderer* sink)
@@ -841,7 +842,9 @@ extern "C"
         Optional<int32_t> id;
     };
 
-    UNITY_INTERFACE_EXPORT DataChannelObject* ContextCreateDataChannel(Context* ctx, PeerConnectionObject* obj, const char* label, const RTCDataChannelInit* options)
+    UNITY_INTERFACE_EXPORT DataChannelInterface* ContextCreateDataChannel(
+        Context* ctx, PeerConnectionObject* obj, const char* label,
+        const RTCDataChannelInit* options)
     {
         DataChannelInit _options;
         _options.ordered = options->ordered.value_or(true);
@@ -854,7 +857,8 @@ extern "C"
         return ctx->CreateDataChannel(obj, label, _options);
     }
 
-    UNITY_INTERFACE_EXPORT void ContextDeleteDataChannel(Context* ctx, DataChannelObject* channel)
+    UNITY_INTERFACE_EXPORT void ContextDeleteDataChannel(
+        Context* ctx, DataChannelInterface* channel)
     {
         ctx->DeleteDataChannel(channel);
     }
@@ -874,7 +878,7 @@ extern "C"
         obj->RegisterConnectionStateChange(callback);
     }
 
-    
+
     UNITY_INTERFACE_EXPORT void PeerConnectionRegisterOnIceCandidate(PeerConnectionObject*obj, DelegateIceCandidate callback)
     {
         obj->RegisterIceCandidate(callback);
@@ -1070,7 +1074,7 @@ extern "C"
             return *this;
         }
     };
-     
+
     UNITY_INTERFACE_EXPORT RTCErrorType TransceiverSetCodecPreferences(RtpTransceiverInterface* transceiver, RTCRtpCodecCapability* codecs, size_t length)
     {
         std::vector<RtpCodecCapability> _codecs(length);
@@ -1086,6 +1090,16 @@ extern "C"
         if (error.type() != RTCErrorType::NONE)
             RTC_LOG(LS_ERROR) << error.message();
         return error.type();
+    }
+
+    UNITY_INTERFACE_EXPORT char* TransceiverGetMid(RtpTransceiverInterface* transceiver)
+    {
+        auto mid = transceiver->mid();
+        if (!mid.has_value())
+        {
+            return nullptr;
+        }
+        return ConvertString(mid.value());
     }
 
     UNITY_INTERFACE_EXPORT RtpReceiverInterface* TransceiverGetReceiver(RtpTransceiverInterface* transceiver)
@@ -1298,80 +1312,95 @@ extern "C"
         return ConvertPtrArrayFromRefPtrArray<MediaStreamInterface>(receiver->streams(), length);
     }
 
-    UNITY_INTERFACE_EXPORT int DataChannelGetID(DataChannelObject* dataChannelObj)
+    UNITY_INTERFACE_EXPORT int DataChannelGetID(
+        DataChannelInterface* channel)
     {
-        return dataChannelObj->dataChannel->id();
+        return channel->id();
     }
 
-    UNITY_INTERFACE_EXPORT char* DataChannelGetLabel(DataChannelObject* dataChannelObj)
+    UNITY_INTERFACE_EXPORT char* DataChannelGetLabel(
+        DataChannelInterface* channel)
     {
-        return ConvertString(dataChannelObj->dataChannel->label());
+        return ConvertString(channel->label());
     }
 
-    UNITY_INTERFACE_EXPORT char* DataChannelGetProtocol(DataChannelObject* dataChannelObj)
+    UNITY_INTERFACE_EXPORT char* DataChannelGetProtocol(
+        DataChannelInterface* channel)
     {
-        return ConvertString(dataChannelObj->dataChannel->protocol());
+        return ConvertString(channel->protocol());
     }
 
-    UNITY_INTERFACE_EXPORT uint16_t DataChannelGetMaxRetransmits(DataChannelObject* dataChannelObj)
+    UNITY_INTERFACE_EXPORT uint16_t DataChannelGetMaxRetransmits(
+        DataChannelInterface* channel)
     {
-        return dataChannelObj->dataChannel->maxRetransmits();
+        return channel->maxRetransmits();
     }
 
-    UNITY_INTERFACE_EXPORT uint16_t DataChannelGetMaxRetransmitTime(DataChannelObject* dataChannelObj)
+    UNITY_INTERFACE_EXPORT uint16_t DataChannelGetMaxRetransmitTime(
+        DataChannelInterface* channel)
     {
-        return dataChannelObj->dataChannel->maxRetransmitTime();
+        return channel->maxRetransmitTime();
     }
 
-    UNITY_INTERFACE_EXPORT bool DataChannelGetOrdered(DataChannelObject* dataChannelObj)
+    UNITY_INTERFACE_EXPORT bool DataChannelGetOrdered(
+        DataChannelInterface* channel)
     {
-        return dataChannelObj->dataChannel->ordered();
+        return channel->ordered();
     }
 
-    UNITY_INTERFACE_EXPORT uint64_t DataChannelGetBufferedAmount(DataChannelObject* dataChannelObj)
+    UNITY_INTERFACE_EXPORT uint64_t DataChannelGetBufferedAmount(
+        DataChannelInterface* channel)
     {
-        return dataChannelObj->dataChannel->buffered_amount();
+        return channel->buffered_amount();
     }
 
-    UNITY_INTERFACE_EXPORT bool DataChannelGetNegotiated(DataChannelObject* dataChannelObj)
+    UNITY_INTERFACE_EXPORT bool DataChannelGetNegotiated(
+        DataChannelInterface* channel)
     {
-        return dataChannelObj->dataChannel->negotiated();
+        return channel->negotiated();
     }
 
     UNITY_INTERFACE_EXPORT DataChannelInterface::DataState DataChannelGetReadyState(
-        DataChannelObject* dataChannelObj)
+        DataChannelInterface* channel)
     {
-        return dataChannelObj->dataChannel->state();
+        return channel->state();
     }
 
-    UNITY_INTERFACE_EXPORT void DataChannelSend(DataChannelObject* dataChannelObj, const char* msg)
+    UNITY_INTERFACE_EXPORT void DataChannelSend(
+        DataChannelInterface* channel, const char* data)
     {
-        dataChannelObj->Send(msg);
+        channel->Send(webrtc::DataBuffer(std::string(data)));
     }
 
-    UNITY_INTERFACE_EXPORT void DataChannelSendBinary(DataChannelObject* dataChannelObj, const byte* msg, int len)
+    UNITY_INTERFACE_EXPORT void DataChannelSendBinary(
+        DataChannelInterface* channel, const byte* data, int len)
     {
-        dataChannelObj->Send(msg, len);
+        rtc::CopyOnWriteBuffer buf(data, len);
+        channel->Send(webrtc::DataBuffer(buf, true));
     }
 
-    UNITY_INTERFACE_EXPORT void DataChannelClose(DataChannelObject* dataChannelObj)
+    UNITY_INTERFACE_EXPORT void DataChannelClose(
+        DataChannelInterface* channel)
     {
-        dataChannelObj->Close();
+        channel->Close();
     }
 
-    UNITY_INTERFACE_EXPORT void DataChannelRegisterOnMessage(DataChannelObject* dataChannelObj, DelegateOnMessage callback)
+    UNITY_INTERFACE_EXPORT void DataChannelRegisterOnMessage(
+        Context* context, DataChannelInterface* channel, DelegateOnMessage callback)
     {
-        dataChannelObj->RegisterOnMessage(callback);
+        context->GetDataChannelObject(channel)->RegisterOnMessage(callback);
     }
 
-    UNITY_INTERFACE_EXPORT void DataChannelRegisterOnOpen(DataChannelObject* dataChannelObj, DelegateOnOpen callback)
+    UNITY_INTERFACE_EXPORT void DataChannelRegisterOnOpen(
+        Context* context, DataChannelInterface* channel, DelegateOnOpen callback)
     {
-        dataChannelObj->RegisterOnOpen(callback);
+        context->GetDataChannelObject(channel)->RegisterOnOpen(callback);
     }
 
-    UNITY_INTERFACE_EXPORT void DataChannelRegisterOnClose(DataChannelObject* dataChannelObj, DelegateOnClose callback)
+    UNITY_INTERFACE_EXPORT void DataChannelRegisterOnClose(
+        Context* context, DataChannelInterface* channel, DelegateOnClose callback)
     {
-        dataChannelObj->RegisterOnClose(callback);
+        context->GetDataChannelObject(channel)->RegisterOnClose(callback);
     }
 
     UNITY_INTERFACE_EXPORT void SetCurrentContext(Context* context)
