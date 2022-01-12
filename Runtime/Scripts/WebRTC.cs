@@ -426,6 +426,8 @@ namespace Unity.WebRTC
                 // Wait until all frame rendering is done
                 yield return new WaitForEndOfFrame();
                 {
+                    var tempTextureActive = RenderTexture.active;
+                    RenderTexture.active = null;
                     foreach (var reference in VideoStreamTrack.s_tracks.Values)
                     {
                         if (!reference.TryGetTarget(out var track))
@@ -439,6 +441,7 @@ namespace Unity.WebRTC
                             track.UpdateReceiveTexture();
                         }
                     }
+                    RenderTexture.active = tempTextureActive;
                 }
             }
         }
