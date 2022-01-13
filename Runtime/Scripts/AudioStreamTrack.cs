@@ -165,7 +165,7 @@ namespace Unity.WebRTC
                 int WriteBuffer(float[] data, int offset)
                 {
                     clip.SetData(data, offset % clip.samples);
-                    return data.Length / Mathf.Max(m_clip.channels, 1);
+                    return data.Length / Mathf.Max(clip.channels, 1);
                 }
             }
 
