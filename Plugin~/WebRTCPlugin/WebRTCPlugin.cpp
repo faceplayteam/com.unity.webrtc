@@ -1441,5 +1441,10 @@ extern "C"
         }
         return false;
     }
+
+    UNITY_INTERFACE_EXPORT bool ContextSetMicrophoneVolume(Context* context, float volume)
+    {
+        return context->SetMicrophoneVolume(volume);
+    }
 }
 

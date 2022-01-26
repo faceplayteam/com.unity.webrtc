@@ -602,5 +602,22 @@ namespace webrtc
         return setDevice;
     }
 
+    bool Context::SetMicrophoneVolume(float volume) {
+        std::lock_guard<std::mutex> lock(mutex);
+
+        bool setVolume = false;
+        if (m_audioDevice != nullptr) {
+            m_audioDevice->SetMicVolumeToInitialize(volume);
+            if (m_audioDevice->RecordingIsInitialized()) {
+                uint32_t maxVolume = 0;
+                if (m_audioDevice->MaxMicrophoneVolume(&maxVolume) == 0) {
+                    setVolume =
+                        m_audioDevice->SetMicrophoneVolume(volume * maxVolume) == 0;
+                }
+            }
+        }
+        return setVolume;
+    }
+
 } // end namespace webrtc
 } // end namespace unity

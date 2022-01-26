@@ -1155,6 +1155,9 @@ namespace Unity.WebRTC
         [DllImport(WebRTC.Lib)]
         [return: MarshalAs(UnmanagedType.U1)]
         public static extern bool ContextSetMicrophone(IntPtr context, [MarshalAs(UnmanagedType.LPUTF8Str)] string deviceName);
+        [DllImport(WebRTC.Lib)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        public static extern bool ContextSetMicrophoneVolume(IntPtr context, float volume);
     }
 
     internal static class VideoEncoderMethods

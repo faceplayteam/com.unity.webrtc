@@ -151,6 +151,7 @@ namespace webrtc
         // AudioDevice
         std::vector<std::string> GetMicrophoneDevices();
         bool SelectMicrophoneDevice(int index);
+        bool SetMicrophoneVolume(float volume);
 
         // mutex;
         std::mutex mutex;
