@@ -18,5 +18,10 @@ namespace Unity.WebRTC
                 throw new Exception("WebRTC.Context.SetMicrophone is failed.");
             }
         }
+
+        public static void SetVolume(float volume)
+        {
+            WebRTC.Context.SetMicrophoneVolume(volume);
+        }
     }
 }

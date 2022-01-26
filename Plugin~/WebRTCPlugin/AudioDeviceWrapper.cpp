@@ -17,9 +17,16 @@ namespace webrtc
         assert(adm_ != nullptr);
     }
 
-    int32 AudioDeviceWrapper::InitRecording(){
+    int32_t AudioDeviceWrapper::InitRecording(){
         adm_->SetRecordingDevice(mic_index_);
-        return adm_->InitRecording();
+        int32_t init = adm_->InitRecording();
+        if (init == 0) {
+            uint32_t volume = 0;
+            if (adm_->MaxMicrophoneVolume(&volume) == 0) {
+                adm_->SetMicrophoneVolume(mic_volume_ * volume);
+            }
+        }
+        return init;
     }
 
 } // end namespace webrtc

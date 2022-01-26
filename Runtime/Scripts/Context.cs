@@ -325,5 +325,10 @@ namespace Unity.WebRTC
         {
             return NativeMethods.ContextSetMicrophone(self, deviceName);
         }
+
+        internal bool SetMicrophoneVolume(float volume)
+        {
+            return NativeMethods.ContextSetMicrophoneVolume(self, volume);
+        }
     }
 }
